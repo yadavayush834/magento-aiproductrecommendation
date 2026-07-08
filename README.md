@@ -23,7 +23,7 @@ AI-powered product recommendations and semantic search for IndiaHandmade.com, us
 
 - **Smarter Search** — a user searches "silk saree" → the query is converted to a vector → OpenSearch k-NN finds semantically similar products, even if they don't share exact keywords.
 - **Product Recommendations** — a user views a product → a "You May Also Like" section on the product page shows similar products, based on stored vector similarity rather than manual category rules.
-- **Nightly Updates** — a cron job at 2 AM re-embeds any products that changed that day, so recommendations stay fresh without a full manual re-index.
+- **Scheduled Updates** — a nightly cron job re-embeds any products that changed that day, so recommendations stay fresh without a full manual re-index.
 
 ---
 
@@ -67,13 +67,27 @@ A vector is just a list of numbers that represents the *meaning* of the text —
 
 ---
 
+## Screenshots
+
+The "May Also Like" section rendered on real product pages, showing AI-driven recommendations based on vector similarity — note how it correctly groups bags with other bags, and watches with other watches, without any manual category rules:
+
+**Duffle bag → similar bags/totes recommended:**
+
+![Recommendations on a duffle bag product page](screenshots/recommendation-duffle-bag.png)
+
+**Watch → similar watches recommended:**
+
+![Recommendations on a watch product page](screenshots/recommendation-watch.png)
+
+---
+
 ## Architecture
 
 ```mermaid
 flowchart TB
     subgraph Magento
         PP[Product Page] --> Block[Recommendations Block]
-        Cron[Cron: 2 AM daily] --> Observer
+        Cron[Nightly Cron Job] --> Observer
         Save[Admin saves a product] --> Observer[ProductSaveObserver]
     end
 
@@ -103,7 +117,7 @@ Custom/AiProductRecommendation/
 │   ├── module.xml          → Module declaration
 │   ├── di.xml               → Dependency injection (swap Ollama/Bedrock here)
 │   ├── config.xml           → Default config values (hosts, ports, index name, model)
-│   ├── crontab.xml          → Nightly cron schedule (2 AM)
+│   ├── crontab.xml          → Nightly cron schedule
 │   └── events.xml           → Product save observer registration
 ├── Model/
 │   ├── EmbeddingServiceInterface.php   → Interface for embedding services
