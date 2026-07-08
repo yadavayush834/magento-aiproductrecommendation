@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <referenceContainer name="content">
+            <block class="Custom\AiProductRecommendation\Block\Product\Recommendations"
+                   name="ai.product.recommendations"
+                   template="Custom_AiProductRecommendation::recommendation-widget.phtml"
+                   after="product.info.main">
+                <arguments>
+                    <argument name="cache_lifetime" xsi:type="number">0</argument>
+                </arguments>
+            </block>
+        </referenceContainer>
+    </body>
+</page>

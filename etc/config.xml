@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <ai_recommendation>
+            <general>
+                <enabled>1</enabled>
+                <recommendation_count>6</recommendation_count>
+                <cache_ttl>21600</cache_ttl> <!-- 6 hours in seconds -->
+            </general>
+            <opensearch>
+                <host>localhost</host>
+                <port>9200</port>
+                <index_name>magento_products</index_name>
+                <vector_dimension>768</vector_dimension>
+            </opensearch>
+            <ollama>
+                <host>localhost</host>
+                <port>11434</port>
+                <model>nomic-embed-text</model>
+            </ollama>
+        </ai_recommendation>
+    </default>
+</config>

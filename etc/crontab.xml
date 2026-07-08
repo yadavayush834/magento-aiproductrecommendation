@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Cron:etc/crontab.xsd">
+    <group id="default">
+        <!-- Runs every night at 2 AM -->
+        <job name="ai_recommendation_update_embeddings"
+             instance="Custom\AiProductRecommendation\Cron\UpdateEmbeddings"
+             method="execute">
+            <schedule>0 2 * * *</schedule>
+        </job>
+    </group>
+</config>

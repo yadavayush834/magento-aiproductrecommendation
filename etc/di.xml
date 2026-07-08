@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+
+    <type name="Custom\AiProductRecommendation\Model\RecommendationProvider">
+        <arguments>
+            <argument name="openSearchClient" xsi:type="object">Custom\AiProductRecommendation\Model\OpenSearchClient</argument>
+            <argument name="embeddingService" xsi:type="object">Custom\AiProductRecommendation\Model\EmbeddingServiceInterface</argument>
+        </arguments>
+    </type>
+
+    <preference for="Custom\AiProductRecommendation\Model\EmbeddingServiceInterface"
+                type="Custom\AiProductRecommendation\Model\OllamaEmbeddingService"/>
+
+    <type name="Magento\Framework\Console\CommandList">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="ai_recommendation_setup" xsi:type="object">Custom\AiProductRecommendation\Console\Command\SetupIndexCommand</item>
+                <item name="ai_recommendation_index" xsi:type="object">Custom\AiProductRecommendation\Console\Command\IndexProductsCommand</item>
+            </argument>
+        </arguments>
+    </type>
+
+</config>
