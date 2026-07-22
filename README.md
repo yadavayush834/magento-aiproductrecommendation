@@ -8,6 +8,7 @@ AI-powered product recommendations and semantic search for IndiaHandmade.com, us
 
 - [What This Module Does](#what-this-module-does)
 - [How It Works](#how-it-works)
+- [Screenshots](#screenshots)
 - [Architecture](#architecture)
 - [File Structure](#file-structure)
 - [Local Setup (Development)](#local-setup-development)
@@ -23,6 +24,7 @@ AI-powered product recommendations and semantic search for IndiaHandmade.com, us
 
 - **Smarter Search** — a user searches "silk saree" → the query is converted to a vector → OpenSearch k-NN finds semantically similar products, even if they don't share exact keywords.
 - **Product Recommendations** — a user views a product → a "You May Also Like" section on the product page shows similar products, based on stored vector similarity rather than manual category rules.
+- **Personalized Homepage** — a logged-in customer visits the homepage → a "Recommended for You" section shows products based on their own purchase and recently-viewed history, blended into a single interest vector. Hidden entirely for guests.
 - **Scheduled Updates** — a nightly cron job re-embeds any products that changed that day, so recommendations stay fresh without a full manual re-index.
 
 ---
@@ -65,6 +67,18 @@ Most semantically similar products are returned
 
 A vector is just a list of numbers that represents the *meaning* of the text — products with similar meaning end up with vectors that are mathematically "close" to each other, even if they don't share any of the same words.
 
+### Homepage personalization — how the "interest vector" is built
+
+The homepage feature reuses the exact same k-NN search as product-page recommendations, but instead of searching from one product's vector, it searches from a **blended vector** built from the customer's own history:
+
+```
+Customer's last ~10 purchased products  ─┐
+                                          ├─► weighted average (purchases weighted higher) ─► "interest vector" ─► same k-NN search ─► Recommended for You
+Customer's last ~10 viewed products    ──┘
+```
+
+Guests have no history to build a vector from, so the section is skipped entirely for them.
+
 ---
 
 ## Screenshots
@@ -79,6 +93,12 @@ The "May Also Like" section rendered on real product pages, showing AI-driven re
 
 ![Recommendations on a watch product page](screenshots/recommendation-watch.png)
 
+**Homepage → "Recommended for You" based on purchase + view history:**
+
+This customer had previously purchased a bag — the homepage correctly surfaced more bags/totes, built entirely from their own order history rather than a single product:
+
+![Recommended for You section on the homepage](screenshots/recommendation-homepage.png)
+
 ---
 
 ## Architecture
@@ -87,14 +107,18 @@ The "May Also Like" section rendered on real product pages, showing AI-driven re
 flowchart TB
     subgraph Magento
         PP[Product Page] --> Block[Recommendations Block]
+        HP[Homepage] --> HPBlock[RecommendedForYou Block]
         Cron[Nightly Cron Job] --> Observer
         Save[Admin saves a product] --> Observer[ProductSaveObserver]
     end
 
     Block --> RP[RecommendationProvider]
+    HPBlock --> CRP[CustomerRecommendationProvider]
     Observer --> RP
     CLI[CLI: ai:recommendation:index] --> RP
 
+    CRP -->|purchase + view history| DB[(sales_order_item /<br/>report_viewed_product_index)]
+    CRP -->|reuses stored vectors| OSC
     RP --> ES{EmbeddingServiceInterface}
     ES -->|local dev| Ollama[Ollama<br/>nomic-embed-text]
     ES -->|production| Bedrock[AWS Bedrock<br/>Titan V2]
@@ -104,6 +128,8 @@ flowchart TB
 ```
 
 **Key design decision:** the module talks to embeddings through `EmbeddingServiceInterface`, not a concrete class directly. Swapping from Ollama (free, local, slower) to Bedrock (paid, cloud, faster/more consistent) is a **one-line change** in `di.xml` — no other code needs to change.
+
+**Reuse over duplication:** `CustomerRecommendationProvider` (homepage) doesn't reimplement any OpenSearch logic — it builds a blended vector from customer history, then calls the exact same `OpenSearchClient::knnSearch()` and `getProductEmbedding()` methods that power the product-page recommendations.
 
 ---
 
@@ -124,7 +150,8 @@ Custom/AiProductRecommendation/
 │   ├── OllamaEmbeddingService.php      → LOCAL dev — uses Ollama nomic-embed-text
 │   ├── BedrockEmbeddingService.php     → PRODUCTION — uses AWS Bedrock Titan V2
 │   ├── OpenSearchClient.php            → All OpenSearch operations (create index, bulk index, search)
-│   └── RecommendationProvider.php      → Core logic, caching, language mapping
+│   ├── RecommendationProvider.php      → Core logic for product-page recommendations + search
+│   └── CustomerRecommendationProvider.php → Builds a customer's blended interest vector for the homepage
 ├── Console/Command/
 │   ├── SetupIndexCommand.php           → bin/magento ai:recommendation:setup
 │   └── IndexProductsCommand.php        → bin/magento ai:recommendation:index
@@ -132,13 +159,18 @@ Custom/AiProductRecommendation/
 │   └── UpdateEmbeddings.php            → Nightly delta embedding update
 ├── Observer/
 │   └── ProductSaveObserver.php         → Refreshes embedding when a product is saved
-└── Block/Product/
-    └── Recommendations.php             → Frontend block for the product page widget
+├── Block/
+│   ├── Product/
+│   │   └── Recommendations.php         → Frontend block for the product page widget
+│   └── Homepage/
+│       └── RecommendedForYou.php       → Frontend block for the homepage widget (logged-in customers only)
 └── view/frontend/
     ├── layout/
-    │   └── catalog_product_view.xml    → Places the block on the product detail page
+    │   ├── catalog_product_view.xml    → Places the product-page block on the product detail page
+    │   └── cms_index_index.xml         → Places the homepage block on the homepage only
     └── templates/
-        └── recommendation-widget.phtml → HTML/CSS for the "You May Also Like" section
+        ├── recommendation-widget.phtml       → HTML/CSS for the "You May Also Like" section
+        └── homepage-recommendations.phtml    → HTML/CSS for the "Recommended for You" section
 ```
 
 ---
@@ -197,6 +229,13 @@ php bin/magento ai:recommendation:index
 ```
 This indexes every enabled product across all configured store views. For a catalog of ~2,000 products this typically takes 15–30 minutes locally on CPU (each product needs one embedding call to Ollama); for a much larger catalog (tens of thousands of products), expect proportionally longer, or consider Bedrock for production-scale speed.
 
+### Step 6 — Testing the homepage feature
+
+The homepage "Recommended for You" section only appears for **logged-in customers who have at least one purchase or recently-viewed product**:
+1. Log in as a customer (not guest checkout)
+2. View a few product pages, and/or place a test order
+3. Visit the homepage — the section appears once there's at least one signal to build a recommendation from
+
 ### Docker alternative (Mac / Linux / WSL)
 
 ```bash
@@ -223,7 +262,7 @@ bin/magento setup:di:compile
 bin/magento cache:flush
 ```
 
-No other code changes are needed — `RecommendationProvider`, the CLI commands, and the cron job all depend on the interface, not the concrete class.
+No other code changes are needed — `RecommendationProvider`, `CustomerRecommendationProvider`, the CLI commands, and the cron job all depend on the interface, not the concrete class.
 
 ### Languages Supported
 
@@ -266,7 +305,7 @@ bin/magento ai:recommendation:index
 | OpenSearch cluster (existing) | $0 extra |
 | Redis cache (existing) | $0 extra |
 
-Local development with Ollama has **no per-embedding cost** — only the one-time setup of pulling the model and the compute time of your own machine.
+Local development with Ollama has **no per-embedding cost** — only the one-time setup of pulling the model and the compute time of your own machine. The homepage feature adds no extra embedding cost — it only reuses vectors already stored from product indexing.
 
 ---
 
@@ -278,6 +317,8 @@ Local development with Ollama has **no per-embedding cost** — only the one-tim
 | `OpenSearchException[No SSL configuration found]` on OpenSearch startup | Security plugin needs certs by default | Add `plugins.security.disabled: true` to `opensearch.yml` (local dev only) |
 | `ai:recommendation:index` reports "0 products found" | No products in that store, or the store ID doesn't exist yet | Add products manually, run `bin/magento sampledata:deploy`, or create the missing store view in Admin → Stores |
 | Recommendations don't appear on the product page at all | Missing layout XML wiring the block into the page | Confirm `view/frontend/layout/catalog_product_view.xml` exists and references `Block\Product\Recommendations` with the correct template |
+| "Recommended for You" never appears on the homepage | Not logged in, or customer has no purchase/view history yet | Log in as a real customer account and view/purchase at least one product; guests never see this section by design |
+| Homepage section shows for a logged-in customer with 0 products found | Purchased/viewed products don't have stored embeddings yet | Re-run `bin/magento ai:recommendation:index` to ensure every product in the catalog has a stored vector |
 | Embedding generation is very slow locally | Ollama running embeddings on CPU | Expected for local dev; for faster bulk indexing use `--limit` for testing, or switch to Bedrock for production-scale runs |
 | `Failed to create the index` with no clear reason | Check `var/log/system.log` for the specific OpenSearch error message — it's always logged there | `tail`/`type` the log file for the exact HTTP error OpenSearch returned |
 

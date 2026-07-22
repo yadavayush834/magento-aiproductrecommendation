@@ -1,0 +1,35 @@
+<?php
+/** @var \Custom\AiProductRecommendation\Block\Homepage\RecommendedForYou $block */
+if (!$block->shouldDisplay()) {
+    return;
+}
+$products = $block->getRecommendedProducts();
+?>
+<div class="ai-homepage-recommendations" style="max-width:1280px;margin:40px auto;padding:0 20px;">
+    <h2 style="font-size:22px;font-weight:600;margin-bottom:20px;">
+        <?= $block->escapeHtml(__('Recommended for You')) ?>
+    </h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:20px;">
+        <?php foreach ($products as $product): ?>
+            <div style="border:1px solid #e0e0e0;border-radius:6px;padding:16px;text-align:center;">
+                <a href="<?= $block->escapeUrl($product->getProductUrl()) ?>">
+                    <img src="<?= $block->escapeUrl($block->getImageUrl($product)) ?>"
+                         alt="<?= $block->escapeHtmlAttr($product->getName()) ?>"
+                         style="max-width:100%;height:160px;object-fit:cover;margin-bottom:10px;"/>
+                </a>
+                <div style="font-size:14px;margin-bottom:6px;">
+                    <a href="<?= $block->escapeUrl($product->getProductUrl()) ?>" style="color:#333;text-decoration:none;">
+                        <?= $block->escapeHtml($product->getName()) ?>
+                    </a>
+                </div>
+                <div style="font-weight:600;color:#1a73e8;margin-bottom:10px;">
+                    <?= $block->getFormattedPrice($product) ?>
+                </div>
+                <a href="<?= $block->escapeUrl($product->getProductUrl()) ?>"
+                   style="display:inline-block;background:#1a73e8;color:#fff;padding:10px 16px;border-radius:4px;text-decoration:none;font-size:13px;font-weight:600;">
+                    <?= $block->escapeHtml(__('View Product')) ?>
+                </a>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</div>

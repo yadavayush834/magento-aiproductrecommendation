@@ -21,4 +21,10 @@
         </arguments>
     </type>
 
+    <type name="Custom\AiProductRecommendation\Model\CustomerRecommendationProvider">
+        <arguments>
+            <argument name="customerSession" xsi:type="object">Magento\Customer\Model\Session\Proxy</argument>
+        </arguments>
+    </type>
+
 </config>

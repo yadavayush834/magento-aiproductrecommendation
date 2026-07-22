@@ -14,8 +14,8 @@ class OpenSearchClient
 {
     private ScopeConfigInterface $config;
     private LoggerInterface $logger;
-    private string $baseUrl;
-    private string $indexName;
+    private ?string $baseUrl = null;
+    private ?string $indexName = null;
 
     public function __construct(
         ScopeConfigInterface $config,
@@ -23,11 +23,30 @@ class OpenSearchClient
     ) {
         $this->config  = $config;
         $this->logger  = $logger;
+    }
 
-        $host            = $config->getValue('ai_recommendation/opensearch/host') ?? 'localhost';
-        $port            = $config->getValue('ai_recommendation/opensearch/port') ?? '9200';
-        $this->baseUrl   = "http://{$host}:{$port}";
-        $this->indexName = $config->getValue('ai_recommendation/opensearch/index_name') ?? 'magento_products';
+    /**
+     * Lazy-load the OpenSearch base URL from config (avoids constructor crash when config cache is cold)
+     */
+    private function getBaseUrl(): string
+    {
+        if ($this->baseUrl === null) {
+            $host          = $this->config->getValue('ai_recommendation/opensearch/host') ?? 'localhost';
+            $port          = $this->config->getValue('ai_recommendation/opensearch/port') ?? '9200';
+            $this->baseUrl = "http://{$host}:{$port}";
+        }
+        return $this->baseUrl;
+    }
+
+    /**
+     * Lazy-load the index name from config
+     */
+    private function getIndexName(): string
+    {
+        if ($this->indexName === null) {
+            $this->indexName = $this->config->getValue('ai_recommendation/opensearch/index_name') ?? 'magento_products';
+        }
+        return $this->indexName;
     }
 
     // ─── Index Management ─────────────────────────────────────────────────────
@@ -73,14 +92,14 @@ class OpenSearchClient
             ]
         ];
 
-        $response = $this->request('PUT', "/{$this->indexName}", $mapping);
+        $response = $this->request('PUT', "/{$this->getIndexName()}", $mapping);
 
         if ($response === null) {
             $this->logger->error('Failed to create OpenSearch index');
             return false;
         }
 
-        $this->logger->info("OpenSearch index '{$this->indexName}' created successfully");
+        $this->logger->info("OpenSearch index '{$this->getIndexName()}' created successfully");
         return true;
     }
 
@@ -89,7 +108,7 @@ class OpenSearchClient
      */
     public function indexExists(): bool
     {
-        $ch = curl_init("{$this->baseUrl}/{$this->indexName}");
+        $ch = curl_init("{$this->getBaseUrl()}/{$this->getIndexName()}");
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_NOBODY, true);
         curl_exec($ch);
@@ -127,7 +146,7 @@ class OpenSearchClient
             'embedding'  => $embedding,
         ];
 
-        $response = $this->request('PUT', "/{$this->indexName}/_doc/{$docId}", $body);
+        $response = $this->request('PUT', "/{$this->getIndexName()}/_doc/{$docId}", $body);
 
         if ($response === null) {
             $this->logger->error("Failed to index product {$productId} [{$language}]");
@@ -149,11 +168,11 @@ class OpenSearchClient
         $bulkBody = '';
         foreach ($documents as $doc) {
             $docId     = "{$doc['product_id']}_{$doc['store_id']}_{$doc['language']}";
-            $bulkBody .= json_encode(['index' => ['_index' => $this->indexName, '_id' => $docId]]) . "\n";
+            $bulkBody .= json_encode(['index' => ['_index' => $this->getIndexName(), '_id' => $docId]]) . "\n";
             $bulkBody .= json_encode($doc) . "\n";
         }
 
-        $ch = curl_init("{$this->baseUrl}/_bulk");
+        $ch = curl_init("{$this->getBaseUrl()}/_bulk");
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
@@ -223,7 +242,7 @@ class OpenSearchClient
             '_source' => ['product_id', 'sku', 'name'],
         ];
 
-        $response = $this->request('POST', "/{$this->indexName}/_search", $query);
+        $response = $this->request('POST', "/{$this->getIndexName()}/_search", $query);
 
         if ($response === null || !isset($response['hits']['hits'])) {
             return [];
@@ -258,7 +277,7 @@ class OpenSearchClient
     public function getProductEmbedding(int $productId, int $storeId, string $language): array
     {
         $docId    = "{$productId}_{$storeId}_{$language}";
-        $response = $this->request('GET', "/{$this->indexName}/_doc/{$docId}");
+        $response = $this->request('GET', "/{$this->getIndexName()}/_doc/{$docId}");
 
         if ($response === null || !isset($response['_source']['embedding'])) {
             return [];
@@ -271,7 +290,7 @@ class OpenSearchClient
 
     private function request(string $method, string $path, array $body = []): ?array
     {
-        $url = $this->baseUrl . $path;
+        $url = $this->getBaseUrl() . $path;
         $ch  = curl_init($url);
 
         $options = [

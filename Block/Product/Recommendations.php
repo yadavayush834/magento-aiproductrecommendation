@@ -35,20 +35,18 @@ class Recommendations extends AbstractProduct
     }
 
     /**
-     * Get the current product from registry
-     */
-    private function getCurrentProduct(): ?\Magento\Catalog\Model\Product
-    {
-        return $this->_coreRegistry->registry('current_product');
-    }
-
-    /**
      * Get recommended products for the current product page
      */
     public function getRecommendedProducts(): array
     {
-        $currentProduct = $this->getCurrentProduct();
-        if (!$currentProduct) {
+        try {
+            $currentProduct = $this->getProduct();
+        } catch (\Exception $e) {
+            $this->logger->error('AI Recommendation: could not get current product — ' . $e->getMessage());
+            return [];
+        }
+
+        if (!$currentProduct || !$currentProduct->getId()) {
             return [];
         }
 
