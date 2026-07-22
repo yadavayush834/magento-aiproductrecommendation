@@ -1,6 +1,6 @@
 # Custom_AiProductRecommendation
 
-AI-powered product recommendations and semantic search for IndiaHandmade.com, using OpenSearch k-NN vector search with locally-generated (Ollama) or cloud-generated (AWS Bedrock) embeddings.
+AI-powered product recommendations and semantic search , using OpenSearch k-NN vector search with locally-generated (Ollama) or cloud-generated (AWS Bedrock) embeddings.
 
 ---
 
